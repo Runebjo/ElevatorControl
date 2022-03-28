@@ -17,5 +17,10 @@
         {
             elevator.GoToFloor(destinationFloor, direction);
         }
+
+        public string GetTimeToFloor(int destinationFloor)
+        {
+            return elevator.GetEstimatedTimeToFloor(destinationFloor);
+        }
     }
 }

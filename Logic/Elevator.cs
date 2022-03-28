@@ -105,7 +105,7 @@ namespace Logic
                     Console.WriteLine($"reached destination. CurrentFloor: {currentFloor}");
                     upQueue[currentFloor] = false;
                     await LetPassengersOff();
-                    currentDirection = ElevatorDirection.Up; // no more passangers below. Going up.
+                    currentDirection = ElevatorDirection.Up; // no more passengers below. Going up.
                 }
             }
 
@@ -123,6 +123,7 @@ namespace Logic
                     Console.WriteLine($"reached destination. CurrentFloor: {currentFloor}");
                     downQueue[currentFloor] = false;
                     await LetPassengersOff();
+                    currentDirection = ElevatorDirection.Up; // no more passengers above. Going down.
                     currentDirection = ElevatorDirection.Down;
                 }
             }
@@ -245,7 +246,8 @@ namespace Logic
 
         public string GetEstimatedTimeToFloor(int floorNum)
         {
-            return "0";
+            var timeToFloor = TimeCalculator.GetTimeToFloor(currentFloor, floorNum, upQueue, downQueue, currentDirection);
+            return $"{timeToFloor} seconds";
         }
     }
 }

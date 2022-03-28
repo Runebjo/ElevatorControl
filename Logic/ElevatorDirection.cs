@@ -4,6 +4,7 @@
     {
         Up,
         Down,
-        Stopped
+        Stopped,
+        Invalid
     }
 }

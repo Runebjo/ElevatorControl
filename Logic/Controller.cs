@@ -9,8 +9,8 @@
         private int timeForEachFloor = 1;
         private int timeForEachStop = 5;
 
-        private List<int> upQueue = new List<int>();
-        private List<int> downQueue = new List<int>();
+        private List<bool> upQueue;
+        private List<bool> downQueue;
 
         private ElevatorDirection currentDirection = ElevatorDirection.Stopped;
 
@@ -19,184 +19,219 @@
 
         public void StartElevator()
         {
+            upQueue = Enumerable.Repeat(false, maxFloor).ToList();
+            downQueue = Enumerable.Repeat(false, maxFloor).ToList();
             IsOperating = true;
             MoveElevator();
         }
 
-        /// <summary>
-        /// User is pressing the button and it is added to the queue
-        /// </summary>
-        /// <param name="destinationFloor"></param>
-        /// <param name="direction"></param>
         public void GoToFloor(int destinationFloor, ElevatorDirection direction = ElevatorDirection.Stopped)
         {
             // If stopped, check current floor and compare it to next floor
             if (direction == ElevatorDirection.Stopped)
             {
                 if (destinationFloor > currentFloor) { 
-                    upQueue.Add(destinationFloor);
-                    currentDirection = ElevatorDirection.Up;
+                    upQueue[destinationFloor] = true;
                 }
                 else
                 {
-                    downQueue.Add(destinationFloor);
-                    currentDirection = ElevatorDirection.Down;
+                    downQueue[destinationFloor] = true;
                 }
             }
 
             else if (direction == ElevatorDirection.Up)
             {
-                upQueue.Add(destinationFloor);
+                upQueue[destinationFloor] = true;
             }
             
             else if (direction == ElevatorDirection.Down)
             {
-                downQueue.Add(destinationFloor);
+                downQueue[destinationFloor] = true;
             }
         }
 
         private async void MoveElevator()
         {
-            int? nextFloor = null;
+            Console.WriteLine($"Init current direction: {currentDirection}");
             while(IsOperating)
             {
-                SetNewDirection();
+                currentDirection = GetDirection();
                 Console.WriteLine("");
-                Console.WriteLine($"UpQueue: {String.Join(",", upQueue)}");
-                Console.WriteLine($"DownQueue: {String.Join(",", downQueue)}");
+                Console.WriteLine($"current direction: {currentDirection}");
+                //Console.WriteLine($"UpQueue: {String.Join(",", upQueue)}");
+                //Console.WriteLine($"DownQueue: {String.Join(",", downQueue)}");
 
                 if (currentDirection == ElevatorDirection.Stopped)
                 {                  
                     Console.WriteLine($"Elevator is idle. Current floor: {currentFloor}");                    
                 }
+
                 else if (currentDirection == ElevatorDirection.Up)
                 {
-                    var destinationFloor = GetNextFloor(ElevatorDirection.Up);
-                    if (!destinationFloor.HasValue)
-                    {
-                        // if no next floor, then go to top
-                        destinationFloor = maxFloor;
-                    }
-
-                    // only up
-                    for (int i = currentFloor; i < destinationFloor; i++)
-                    {
-                        await Task.Delay(1000);
-                        currentFloor++;
-                        Console.WriteLine($"Current floor: {currentFloor}, Destination floor: {destinationFloor}");
-                    }
-                    await Task.Delay(1000);
-                    Console.WriteLine("Reached destination floor");
-
-                    for (int i = 0; i < timeForEachStop; i++)
-                    {
-                        await Task.Delay(1000);
-                        Console.WriteLine("Letting off/on passengers");
-                    }
-
-                    if (upQueue.Count > 0) upQueue.RemoveAt(0);
+                    currentFloor++;
+                    await ProcessFloor();
                 }
 
                 else if (currentDirection == ElevatorDirection.Down)
                 {
-                    var destinationFloor = GetNextFloor(ElevatorDirection.Down);
-                    if (!destinationFloor.HasValue)
-                    {
-                        // if no next floor, then go to bottom
-                        destinationFloor = minFloor;
-                    }
-
-                    // only down
-                    for (int i = currentFloor; i > destinationFloor; i--)
-                    {
-                        await Task.Delay(1000);
-                        currentFloor--;
-                        Console.WriteLine($"Current floor: {currentFloor}, Destination floor: {destinationFloor}");
-                    }
-                    await Task.Delay(1000);
-                    Console.WriteLine("Reached destination floor");
-
-                    for (int i = 0; i < timeForEachStop; i++)
-                    {
-                        await Task.Delay(1000);
-                        Console.WriteLine("Letting off/on passengers");
-                    }
-
-                    if (downQueue.Count > 0) downQueue.RemoveAt(0);
+                    currentFloor--;
+                    await ProcessFloor();
                 }
+
                 await Task.Delay(1000);
+                Console.WriteLine($"Current Floor: {currentFloor}");
             }
         }
 
-        private void SetNewDirection()
+        private async Task ProcessFloor()
         {
+            if (currentDirection == ElevatorDirection.Down)
+            {
+                if (downQueue[currentFloor] == true)
+                {
+                    Console.WriteLine($"reached destination. CurrentFloor: {currentFloor}");
+                    downQueue[currentFloor] = false;
+                    await LetPassengersOff();
+
+                }
+                
+                // Person on the lowest floor. Pick up
+                else if (upQueue[currentFloor] == true && !HasPendingBelow())
+                {
+                    Console.WriteLine($"reached destination. CurrentFloor: {currentFloor}");
+                    upQueue[currentFloor] = false;
+                    await LetPassengersOff();
+                    currentDirection = ElevatorDirection.Up; // no more passangers below. Going up.
+                }
+            }
+
             if (currentDirection == ElevatorDirection.Up)
             {
-                if (!upQueue.Any() && downQueue.Any())
+                if (upQueue[currentFloor] == true)
                 {
-                    currentDirection = ElevatorDirection.Down;
+                    Console.WriteLine($"reached destination. CurrentFloor: {currentFloor}");
+                    upQueue[currentFloor] = false;
+                    await LetPassengersOff();
                 }
 
-                if (!upQueue.Any() && !downQueue.Any())
+                else if(downQueue[currentFloor] == true && !HasPendingAbove())
                 {
-                    currentDirection = ElevatorDirection.Stopped;
+                    Console.WriteLine($"reached destination. CurrentFloor: {currentFloor}");
+                    downQueue[currentFloor] = false;
+                    await LetPassengersOff();
+                    currentDirection = ElevatorDirection.Down;
                 }
+            }
+        }
+
+        private async Task LetPassengersOff()
+        {
+            for (int i = 0; i < timeForEachStop; i++)
+            {
+                await Task.Delay(1000);
+                Console.WriteLine("Letting passengers on/off");
+            }
+        }
+
+        private ElevatorDirection GetDirection()
+        {
+            if (HasNoMoreQueue())
+            {
+                return ElevatorDirection.Stopped;
+            }
+
+            if (currentDirection == ElevatorDirection.Up)
+            {
+                // Check if there is floors queued up above current floor
+                if (HasPendingAbove())
+                {
+                    return ElevatorDirection.Up;
+                }
+
+                return ElevatorDirection.Down;
             }
 
             else if (currentDirection == ElevatorDirection.Down)
             {
-                if (upQueue.Any() && !downQueue.Any())
+                // Check if there is
+                if (HasPendingBelow())
                 {
-                    currentDirection = ElevatorDirection.Up;
+                    return ElevatorDirection.Down;
                 }
 
-                if (!upQueue.Any() && !downQueue.Any())
-                {
-                    currentDirection = ElevatorDirection.Stopped;
-                }
+                return ElevatorDirection.Up;
             }
 
-            else if (currentDirection == ElevatorDirection.Stopped)
+            if (currentDirection == ElevatorDirection.Stopped)
             {
-                if (upQueue.Any() && !downQueue.Any())
+                if (HasUpQueue() && !HasDownQueue())
                 {
-                    currentDirection = ElevatorDirection.Up;
+                    return ElevatorDirection.Up;
                 }
 
-                else if (downQueue.Any() && !upQueue.Any())
+                else if (HasDownQueue() && !HasUpQueue())
                 {
-                    currentDirection = ElevatorDirection.Down;
+                    return ElevatorDirection.Down;
                 }
 
-                else if (downQueue.Any() && upQueue.Any())
+                else if (HasDownQueue() && HasUpQueue())
                 {
                     // Maybe go to the closest?
-                    currentDirection = ElevatorDirection.Up;
+                    return ElevatorDirection.Up;
                 }
             }
 
-            Console.WriteLine($"Set new current direction: ${currentDirection}");
+            return ElevatorDirection.Invalid;
         }
 
-        public ElevatorDirection GetDirection()
+        private bool HasNoMoreQueue()
         {
-            return currentDirection;
+            if (!upQueue.Any(u => u == true) && !downQueue.Any(d => d == true))
+            {
+                return true;
+            }
+
+            return false;
         }
 
-        private int? GetNextFloor(ElevatorDirection elevatorDirection)
+        private bool HasDownQueue()
         {
-            int? floor = null;
-            if (elevatorDirection == ElevatorDirection.Up)
-            {
-                if (upQueue.Count > 0) floor = upQueue.FirstOrDefault();
-            }
+            return downQueue.Any(d => d == true);
+        }
 
-            else if (elevatorDirection == ElevatorDirection.Down)
-            {
-                if (downQueue.Count > 0) floor = downQueue.FirstOrDefault();
-            }
+        private bool HasUpQueue()
+        {
+            return upQueue.Any(d => d == true);
+        }
 
-            return floor;
+        private bool HasPendingBelow()
+        {
+            return HasPendingDownBelow() || HasPendingUpBelow();
+        }
+
+        private bool HasPendingAbove()
+        {
+            return HasPendingDownAbove() || HasPendingUpAbove();
+        }
+
+        private bool HasPendingDownBelow()
+        {
+            return downQueue.Select((value, index) => new { value, index }).Any(x => x.value == true && x.index < currentFloor);
+        }
+
+        private bool HasPendingUpBelow()
+        {
+            return upQueue.Select((value, index) => new { value, index }).Any(x => x.value == true && x.index < currentFloor);
+        }
+
+        private bool HasPendingDownAbove()
+        {
+            return downQueue.Select((value, index) => new { value, index }).Any(x => x.value == true && x.index > currentFloor);
+        }
+
+        private bool HasPendingUpAbove()
+        {
+            return upQueue.Select((value, index) => new { value, index }).Any(x => x.value == true && x.index > currentFloor);
         }
 
         public void PullEmergencyBreak()
